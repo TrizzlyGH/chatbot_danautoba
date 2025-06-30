@@ -1,0 +1,9 @@
+flask
+pandas
+python-dotenv
+openai
+langchain
+langchain-community
+langchain-mistralai
+chromadb
+scikit-learn
