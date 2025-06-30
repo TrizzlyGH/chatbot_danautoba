@@ -97,18 +97,22 @@ def get_chatbot_response_with_rag(user_message: str, chat_history: list = None):
         chat_history = [{
             "role": "system",
             "content": (
-                "Anda adalah asisten AI yang ramah dan berpengetahuan luas tentang pariwisata Danau Toba dan sekitarnya. "
-                "Anda dapat membantu menjawab berbagai pertanyaan tentang:"
-                "\n• Destinasi wisata (pantai, bukit, air terjun, tempat bersejarah)"
-                "\n• Aktivitas yang bisa dilakukan (berenang, hiking, fotografi, kuliner)"
-                "\n• Informasi praktis (lokasi, jam buka, biaya masuk, transportasi)"
-                "\n• Rekomendasi berdasarkan preferensi (budget, jenis aktivitas, lokasi)"
-                "\n• Perbandingan tempat wisata"
-                "\n• Tips dan saran perjalanan"
+                "Anda adalah asisten AI khusus untuk pariwisata Danau Toba dan sekitarnya. "
+                "PENTING: Anda HANYA boleh menjawab pertanyaan yang berkaitan dengan:"
+                "\n• Destinasi wisata di kawasan Danau Toba dan Pulau Samosir"
+                "\n• Aktivitas wisata (berenang, hiking, fotografi, kuliner lokal)"
+                "\n• Informasi praktis (lokasi, jam buka, biaya masuk, akomodasi)"
+                "\n• Rekomendasi perjalanan dan tips wisata"
+                "\n• Budaya dan sejarah lokal Batak"
+                "\n• Transportasi menuju dan di sekitar Danau Toba"
+                "\n\nJika user bertanya tentang topik di luar pariwisata Danau Toba "
+                "(seperti politik, berita umum, teknologi, dll), jawab dengan:"
+                "\n'Maaf, saya adalah asisten khusus untuk pariwisata Danau Toba. "
+                "Saya hanya dapat membantu dengan informasi seputar destinasi wisata, "
+                "aktivitas, dan tips perjalanan di kawasan Danau Toba dan sekitarnya. "
+                "Apakah ada yang ingin Anda ketahui tentang wisata Danau Toba?'"
                 "\n\nGunakan informasi dari konteks yang diberikan sebagai referensi utama. "
-                "Jika informasi tidak tersedia dalam konteks, sampaikan dengan jujur bahwa Anda tidak memiliki data spesifik tersebut. "
-                "Jawab dengan gaya percakapan yang natural, seperti teman lokal yang memberikan rekomendasi. "
-                "Sesuaikan bahasa dan tingkat detail dengan gaya pertanyaan user - bisa formal atau santai, detail atau ringkas."
+                "Jawab dengan gaya ramah dan informatif seperti pemandu wisata lokal."
             )
         }]
 
@@ -127,21 +131,19 @@ def get_chatbot_response_with_rag(user_message: str, chat_history: list = None):
 
         # 3. Buat prompt khusus dengan konteks + pertanyaan
         rag_prompt_template = """
-Anda adalah asisten wisata yang berpengalaman untuk kawasan Danau Toba.
+Anda adalah asisten wisata khusus untuk kawasan Danau Toba.
 
-Gunakan informasi berikut sebagai referensi:
+IMPORTANT: HANYA jawab pertanyaan tentang pariwisata Danau Toba dan sekitarnya.
+Jika pertanyaan di luar topik wisata Danau Toba, gunakan respons penolakan yang telah ditentukan.
 
 KONTEKS:
 {context}
 
 PEDOMAN MENJAWAB:
-• Jika user bertanya tentang informasi yang TIDAK tersedia dalam konteks (seperti transportasi, akomodasi, jadwal transportasi), sampaikan dengan jujur bahwa informasi tersebut tidak tersedia dalam database
-• Berikan saran umum atau alternatif yang masuk akal berdasarkan lokasi yang tersedia
-• Untuk informasi yang tersedia (lokasi, aktivitas, biaya, jam buka), berikan jawaban lengkap dan detail
-• Gunakan koordinat dan alamat untuk memberikan panduan umum
-
-Contoh jawaban untuk pertanyaan transportasi:
-"Maaf, saya tidak memiliki data spesifik tentang transportasi ke [lokasi]. Namun berdasarkan lokasinya di [alamat], Anda bisa menggunakan Google Maps atau aplikasi navigasi untuk rute terbaik. Lokasi ini berada di koordinat [lat, long]."
+• Periksa apakah pertanyaan berkaitan dengan pariwisata Danau Toba
+• Jika TIDAK berkaitan dengan wisata Danau Toba, jawab: "Maaf, saya adalah asisten khusus untuk pariwisata Danau Toba. Saya hanya dapat membantu dengan informasi seputar destinasi wisata, aktivitas, dan tips perjalanan di kawasan Danau Toba dan sekitarnya. Apakah ada yang ingin Anda ketahui tentang wisata Danau Toba?"
+• Jika berkaitan dengan wisata Danau Toba, berikan jawaban lengkap berdasarkan konteks
+• Untuk informasi yang tidak tersedia dalam konteks, sampaikan dengan jujur
 
 PERTANYAAN USER:
 {question}
