@@ -92,7 +92,7 @@ def get_relevant_context(retrieved_docs, question, top_k=5):
     return [doc.page_content for _, doc in sorted_docs[:top_k]]
 
 # --- Chatbot utama dengan RAG ---
-def get_chatbot_response_with_rag(user_message: str, chat_history: list = None):
+def get_chatbot_response_with_rag(user_message: str, chat_history: list = None, max_history=6):
     if not chat_history:
         chat_history = [{
             "role": "system",
@@ -116,9 +116,21 @@ def get_chatbot_response_with_rag(user_message: str, chat_history: list = None):
             )
         }]
 
+    # ✅ FUNGSI SLIDING WINDOW MEMORY
+    def manage_chat_history(history, max_turns=max_history):
+        """Pertahankan hanya N percakapan terakhir + system prompt"""
+        if len(history) <= max_turns + 1:  # +1 untuk system prompt
+            return history
+        
+        # Pertahankan system prompt + N percakapan terakhir
+        system_prompt = history[0]
+        recent_messages = history[-(max_turns):]
+        return [system_prompt] + recent_messages
+
     if global_vector_store is None:
         # Kalau vector DB gak ada, langsung ke LLM tanpa konteks
-        messages_for_llm = chat_history + [{"role": "user", "content": user_message}]
+        managed_history = manage_chat_history(chat_history, max_history)
+        messages_for_llm = managed_history + [{"role": "user", "content": user_message}]
     else:
         # 1. Cari dokumen relevan
         retrieved_docs = global_vector_store.similarity_search(user_message, k=20)
@@ -133,17 +145,20 @@ def get_chatbot_response_with_rag(user_message: str, chat_history: list = None):
         rag_prompt_template = """
 Anda adalah asisten wisata khusus untuk kawasan Danau Toba.
 
-IMPORTANT: HANYA jawab pertanyaan tentang pariwisata Danau Toba dan sekitarnya.
-Jika pertanyaan di luar topik wisata Danau Toba, gunakan respons penolakan yang telah ditentukan.
+LANGKAH PERTAMA - VALIDASI TOPIK:
+Sebelum menjawab, periksa apakah pertanyaan berkaitan dengan:
+- Destinasi wisata di Danau Toba/Pulau Samosir
+- Aktivitas wisata (berenang, hiking, fotografi, kuliner)
+- Informasi praktis (lokasi, jam buka, biaya, akomodasi)
+- Transportasi ke/di sekitar Danau Toba
+- Budaya dan sejarah Batak
+- Tips perjalanan
 
-KONTEKS:
+Jika pertanyaan TIDAK berkaitan dengan topik di atas, ABAIKAN semua konteks dan jawab HANYA:
+"Maaf, saya adalah asisten khusus untuk pariwisata Danau Toba. Saya hanya dapat membantu dengan informasi seputar destinasi wisata, aktivitas, dan tips perjalanan di kawasan Danau Toba dan sekitarnya. Apakah ada yang ingin Anda ketahui tentang wisata Danau Toba?"
+
+KONTEKS (HANYA gunakan jika pertanyaan relevan dengan wisata Danau Toba):
 {context}
-
-PEDOMAN MENJAWAB:
-• Periksa apakah pertanyaan berkaitan dengan pariwisata Danau Toba
-• Jika TIDAK berkaitan dengan wisata Danau Toba, jawab: "Maaf, saya adalah asisten khusus untuk pariwisata Danau Toba. Saya hanya dapat membantu dengan informasi seputar destinasi wisata, aktivitas, dan tips perjalanan di kawasan Danau Toba dan sekitarnya. Apakah ada yang ingin Anda ketahui tentang wisata Danau Toba?"
-• Jika berkaitan dengan wisata Danau Toba, berikan jawaban lengkap berdasarkan konteks
-• Untuk informasi yang tidak tersedia dalam konteks, sampaikan dengan jujur
 
 PERTANYAAN USER:
 {question}
@@ -157,21 +172,28 @@ JAWABAN:
         )
         formatted_prompt = rag_prompt.format(context=context_combined, question=user_message)
 
-        # 4. Kirim ke LLM API
-        messages_for_llm = [{"role": "system", "content": formatted_prompt}] + chat_history[1:] + [{"role": "user", "content": user_message}]
+        # 4. ✅ Gunakan managed history untuk LLM
+        managed_history = manage_chat_history(chat_history, max_history)
+        messages_for_llm = [{"role": "system", "content": formatted_prompt}] + managed_history[1:] + [{"role": "user", "content": user_message}]
 
     try:
         response = llm_client.chat.completions.create(
             model=LLM_MODEL_ID,
             messages=messages_for_llm,
             stream=False,
-            temperature=0,
+            temperature=0.1,  # ✅ Sedikit lebih tinggi untuk variasi jawaban
             top_p=0.9,
             max_tokens=0
         )
         assistant_message = response.choices[0].message.content
+        
+        # ✅ Tambahkan ke history
         chat_history.append({"role": "user", "content": user_message})
         chat_history.append({"role": "assistant", "content": assistant_message})
+        
+        # ✅ Kelola panjang history setelah menambah percakapan baru
+        chat_history = manage_chat_history(chat_history, max_history)
+        
         return assistant_message, chat_history
     except Exception as e:
         print(f"LLM API error: {e}")
